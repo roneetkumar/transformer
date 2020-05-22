@@ -2,6 +2,7 @@ package primitive
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,28 +35,33 @@ func WithMode(mode Mode) func() []string {
 }
 
 //Transform func
-func Transform(image io.Reader, shapes int, opts ...func() []string) (io.Reader, error) {
+func Transform(image io.Reader, ext string, shapes int, opts ...func() []string) (io.Reader, error) {
 
-	in, err := ioutil.TempFile("", "in_")
+	var args []string
+	for _, opt := range opts {
+		args = append(args, opt()...)
+	}
+
+	in, err := tempFile("in_", ext)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Primitive : failed to create temp input file")
 	}
 	defer os.Remove(in.Name())
 
-	out, err := ioutil.TempFile("", "out_")
+	out, err := tempFile("out_", ext)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Primitive : failed to create temp output file")
 	}
 	defer os.Remove(out.Name())
 
 	_, err = io.Copy(in, image)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Primitive : failed to copy image into temp input file")
 	}
 
-	std, err := primitive(in.Name(), out.Name(), shapes, ModeCombo)
+	std, err := primitive(in.Name(), out.Name(), shapes, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Primitive : failed to run the primitive cmd, stdcombo=%s", std)
 	}
 
 	fmt.Println(std)
@@ -64,16 +70,28 @@ func Transform(image io.Reader, shapes int, opts ...func() []string) (io.Reader,
 
 	_, err = io.Copy(b, out)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Primitive : failed to copy output file into byte buffer")
 	}
 
 	return b, nil
 
 }
 
-func primitive(input string, output string, shapes int, mode Mode) (string, error) {
-	argstr := fmt.Sprintf("-i %s -o %s -n %d -m %d", input, output, shapes, mode)
-	cmd := exec.Command("primitive", strings.Fields(argstr)...)
+func primitive(input string, output string, shapes int, args ...string) (string, error) {
+	argstr := fmt.Sprintf("-i %s -o %s -n %d", input, output, shapes)
+
+	args = append(strings.Fields(argstr), args...)
+	cmd := exec.Command("primitive", args...)
 	b, err := cmd.CombinedOutput()
 	return string(b), err
+}
+
+func tempFile(prefix string, ext string) (*os.File, error) {
+	in, err := ioutil.TempFile("", prefix)
+	if err != nil {
+		return nil, errors.New("Primitive : failed to create temp input file")
+	}
+	defer os.Remove(in.Name())
+
+	return os.Create(fmt.Sprintf("%s.%s", in.Name(), ext))
 }
