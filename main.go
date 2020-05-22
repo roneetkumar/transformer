@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"text/template"
 
 	"github.com/roneetkumar/transformers/primitive"
 )
@@ -41,21 +42,56 @@ func main() {
 
 		ext := filepath.Ext(header.Filename)[1:]
 
-		out, err := primitive.Transform(file, ext, 100, primitive.WithMode(primitive.ModeBeziers))
+		a, err := generateImage(file, ext, 33, primitive.ModeBeziers)
 		if err != nil {
+			panic(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		file.Seek(0, 0)
+		b, err := generateImage(file, ext, 33, primitive.ModeTriangle)
+		if err != nil {
+			panic(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		file.Seek(0, 0)
+		c, err := generateImage(file, ext, 33, primitive.ModeCircle)
+		if err != nil {
+			panic(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		file.Seek(0, 0)
+		d, err := generateImage(file, ext, 33, primitive.ModeRect)
+		if err != nil {
+			panic(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
-		outFile, err := tempFile("out_", ext)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		defer outFile.Close()
+		html := `
+			<html>
+				<body>
+				{{range .}}
+					<img src="/{{.}}"/><br><br>
+				{{end}}
+				</body>
+			</html>
+		`
 
-		io.Copy(outFile, out)
+		tpl := template.Must(template.New("").Parse(html))
 
-		rurl := fmt.Sprintf("/%s", outFile.Name())
-		http.Redirect(w, r, rurl, http.StatusFound)
+		images := []string{a, b, c, d}
+
+		// for i, img := range images {
+		// 	images[i] = "/" + img
+		// }
+
+		tpl.Execute(w, images)
+
+		// rurl := fmt.Sprintf("/%s", b)
+		// http.Redirect(w, r, rurl, http.StatusFound)
 	})
 
 	fs := http.FileServer(http.Dir("./img/"))
@@ -72,4 +108,22 @@ func tempFile(prefix string, ext string) (*os.File, error) {
 	}
 	defer os.Remove(in.Name())
 	return os.Create(fmt.Sprintf("%s.%s", in.Name(), ext))
+}
+
+func generateImage(r io.Reader, ext string, shapes int, mode primitive.Mode) (string, error) {
+	out, err := primitive.Transform(r, ext, shapes, primitive.WithMode(mode))
+	if err != nil {
+		return "", err
+	}
+
+	outFile, err := tempFile("out_", ext)
+	if err != nil {
+		return "", err
+	}
+	defer outFile.Close()
+
+	io.Copy(outFile, out)
+
+	return outFile.Name(), nil
+
 }
