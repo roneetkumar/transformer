@@ -45,29 +45,21 @@ func main() {
 		a, err := generateImage(file, ext, 33, primitive.ModeBeziers)
 		if err != nil {
 			panic(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
 		file.Seek(0, 0)
 		b, err := generateImage(file, ext, 33, primitive.ModeTriangle)
 		if err != nil {
 			panic(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
 		file.Seek(0, 0)
 		c, err := generateImage(file, ext, 33, primitive.ModeCircle)
 		if err != nil {
 			panic(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
 		file.Seek(0, 0)
 		d, err := generateImage(file, ext, 33, primitive.ModeRect)
 		if err != nil {
 			panic(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
 
 		html := `
